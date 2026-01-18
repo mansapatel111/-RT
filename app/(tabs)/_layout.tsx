@@ -14,7 +14,10 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
+        header: () => null,
         tabBarButton: HapticTab,
+        // hide the visual tab bar (prevents an extra index tab appearing at the top on web)
+        tabBarStyle: { display: 'none' },
       }}>
       <Tabs.Screen
         name="index"
