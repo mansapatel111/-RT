@@ -1,3 +1,4 @@
+import LiveKitAgentDialog from "@/components/livekit-agent-dialog";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { speakWithElevenLabs, stopElevenLabs } from "./elevenlabs";
+import { ArtworkMetadata } from "./livekit";
 
 export default function ResultScreen() {
   const params = useLocalSearchParams();
@@ -36,6 +38,18 @@ export default function ResultScreen() {
   const [isPlayingImmersive, setIsPlayingImmersive] = useState(false);
   const [showHistoricalTranscript, setShowHistoricalTranscript] =
     useState(false);
+  const [showAgentDialog, setShowAgentDialog] = useState(false);
+
+  // Prepare artwork metadata for LiveKit agent
+  const artworkMetadata: ArtworkMetadata = {
+    imageUri: imageUri as string,
+    title: title as string,
+    artist: artist as string,
+    type: type as string,
+    description: description as string,
+    historicalContext: historicalPrompt as string,
+    emotions: emotions as string,
+  };
 
   useEffect(() => {
     // Auto-play music when the screen loads (if available)
@@ -101,7 +115,7 @@ export default function ResultScreen() {
         await speakWithElevenLabs(
           textToRead,
           {
-            voice: "Rachel", // Calm, clear female voice
+            voice: "Bella", // Calm, clear female voice
             stability: 0.5,
             similarity_boost: 0.75,
           },
@@ -366,6 +380,19 @@ export default function ResultScreen() {
           <TouchableOpacity
             style={styles.actionButton}
             accessibilityRole="button"
+            accessibilityLabel="Ask AI Art Guide"
+            accessibilityHint="Double tap to start a voice conversation with an AI guide about this artwork"
+            onPress={() => setShowAgentDialog(true)}
+          >
+            <MaterialIcons name="chat" size={20} color="#fff" />
+            <Text style={styles.actionText}>Ask AI Guide</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.rowActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            accessibilityRole="button"
             accessibilityLabel="Take another picture"
             accessibilityHint="Double tap to return to camera to scan another artwork"
             onPress={onTakeAnother}
@@ -385,6 +412,13 @@ export default function ResultScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* LiveKit Agent Dialog */}
+      <LiveKitAgentDialog
+        visible={showAgentDialog}
+        onClose={() => setShowAgentDialog(false)}
+        artworkData={artworkMetadata}
+      />
     </ScrollView>
   );
 }

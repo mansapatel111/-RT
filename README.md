@@ -8,7 +8,9 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    ```bash
    npm install
+   npm install @livekit/react-native livekit-client @livekit/react-native-webrtc
    ```
+   
 
 2. Start the app
 

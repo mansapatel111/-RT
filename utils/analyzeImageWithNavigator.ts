@@ -540,7 +540,6 @@
 // utils/analyzeImageWithNavigator.ts
 // Updated to support Museum, Monument, and Landscape modes
 
-
 // ============= TYPE DEFINITIONS =============
 interface ChatCompletionResponse {
   choices: Array<{
@@ -792,18 +791,94 @@ async function analyzeWithNavigator(
 
     let metadata;
     try {
-      metadata = JSON.parse(metadataContent);
-    } catch {
-      metadata = {
-        name: `Unknown ${mode === "museum" ? "Artwork" : mode === "monuments" ? "Monument" : "Landscape"}`,
-        creator:
-          mode === "museum"
-            ? "Unknown Artist"
-            : mode === "monuments"
-              ? "Unknown"
-              : "Nature",
-        category: `Unknown ${mode === "museum" ? "Genre" : "Type"}`,
-      };
+      // Try to parse JSON response
+      const jsonMatch = metadataContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        metadata = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON found in response");
+      }
+
+      // Validate that we got actual information, not "Unknown"
+      if (metadata.name && metadata.name.toLowerCase().includes("unknown")) {
+        console.warn(
+          "⚠️ Got 'Unknown' in name, attempting more specific prompt...",
+        );
+        throw new Error("Generic response received");
+      }
+    } catch (parseError) {
+      // Retry with more forceful prompt
+      console.log("🔄 Retrying with more specific prompt...");
+      const retryPrompt = `Look carefully at this ${mode === "museum" ? "painting or artwork" : mode === "monuments" ? "monument, landmark, or historical structure" : "landscape or natural scene"}. 
+
+Provide its SPECIFIC, EXACT name (not "Unknown"). If you cannot identify it with certainty, describe what you see specifically.
+
+Return ONLY this JSON format:
+{
+  "name": "[specific name or detailed description]",
+  "creator": "[${mode === "museum" ? "artist name" : mode === "monuments" ? "architect, culture, or builder" : "location or region"}]",
+  "category": "[${mode === "museum" ? "art style/movement" : mode === "monuments" ? "structure type" : "landscape type"}]"
+}`;
+
+      const retryResponse = await fetch(
+        NAVIGATOR_BASE_URL + "chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${NAVIGATOR_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: retryPrompt },
+                  { type: "image_url", image_url: { url: imageDataUrl } },
+                ],
+              },
+            ],
+            temperature: 0.3, // Lower temperature for more accurate identification
+          }),
+        },
+      );
+
+      if (retryResponse.ok) {
+        const retryData: ChatCompletionResponse = await retryResponse.json();
+        const retryContent = retryData.choices[0]?.message?.content || "";
+        const retryJsonMatch = retryContent.match(/\{[\s\S]*\}/);
+
+        if (retryJsonMatch) {
+          try {
+            metadata = JSON.parse(retryJsonMatch[0]);
+            console.log("✅ Retry successful:", metadata);
+          } catch {
+            metadata = {
+              name: `${mode === "museum" ? "Classical Artwork" : mode === "monuments" ? "Historical Structure" : "Natural Landscape"}`,
+              creator:
+                mode === "museum"
+                  ? "Artist Unknown"
+                  : mode === "monuments"
+                    ? "Builders Unknown"
+                    : "Nature",
+              category: `${mode === "museum" ? "Fine Art" : mode === "monuments" ? "Monument" : "Landscape"}`,
+            };
+          }
+        }
+      } else {
+        // Final fallback
+        metadata = {
+          name: `${mode === "museum" ? "Artwork" : mode === "monuments" ? "Monument" : "Landscape"}`,
+          creator:
+            mode === "museum"
+              ? "Artist Unknown"
+              : mode === "monuments"
+                ? "Unknown"
+                : "Nature",
+          category: `${mode === "museum" ? "Art" : mode === "monuments" ? "Structure" : "Natural Scene"}`,
+        };
+      }
     }
 
     // PROMPT 2: Historical/Descriptive Analysis (500 chars)
@@ -922,13 +997,17 @@ async function generateMusicWithSuno(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        prompt: prompt,
-        customMode: false,
-        instrumental: true,
-        style: prompts.musicStyle,
-        negativeTags: prompts.musicNegativeTags,
+        prompt: `[Instrumental] ${prompt}`, // Prefix prompt with [Instrumental] tag
+        customMode: true, // CRITICAL: Use custom mode to control lyrics
+        instrumental: true, // ✅ Ensures NO LYRICS - generates instrumental music only
+        makeInstrumental: true, // Additional flag to reinforce instrumental-only generation
+        title: "Instrumental Artwork Soundtrack",
+        tags: prompts.musicStyle,
+        negativeTags: `${prompts.musicNegativeTags}, Vocals, Lyrics, Singing, Words, Voice`,
         model: "V4_5",
-        audioWeight: 0.65,
+        mv: "chirp-v3-5", // Use latest model for better instrumental generation
+        continueAt: 0,
+        continueClipId: null,
         callBackUrl:
           "https://webhook.site/#!/view/00000000-0000-0000-0000-000000000000",
       }),

@@ -93,7 +93,7 @@ export async function speakWithElevenLabs(
       throw new Error("ElevenLabs API key not configured");
     }
 
-    const voice = options?.voice || "Rachel";
+    const voice = options?.voice || "Bella";
     const voiceId = ELEVENLABS_VOICES[voice];
 
     console.log("🎙️ Making ElevenLabs API request...");
